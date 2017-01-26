@@ -55,26 +55,28 @@
 (defun magit-gl-insert-commit-level-comments (rev)
 	(magit-gl-with-project
 	 (let*
-			((case-fold-search nil))
-		(magit-insert-section (commit-comment)
-			(magit-insert-heading "Commit-level comments:")
-			(mapc (lambda (comment)
-							(let ((date-string (cdr (assoc 'created_at comment))))
-								(string-match "\\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\)" date-string)
-								(insert "(" (match-string 1 date-string) ") "))
-							(insert (replace-regexp-in-string
-											 "[[:lower:] ]" ""
-											 (cdr (assoc 'name (cdr (assoc 'author comment))))))
-							(insert ": ")
-							(insert (replace-regexp-in-string
-											 "\\(\\|
+			 ((case-fold-search nil)
+				(comments (magit-gl-commit-level-comments
+									 (magit-gl-comments sha project-id))))
+		 (and (> (length comments) 0)
+			(magit-insert-section (commit-comment)
+				(magit-insert-heading "Commit-level comments:")
+				(mapc (lambda (comment)
+								(let ((date-string (cdr (assoc 'created_at comment))))
+									(string-match "\\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\)" date-string)
+									(insert "(" (match-string 1 date-string) ") "))
+								(insert (replace-regexp-in-string
+												 "[[:lower:] ]" ""
+												 (cdr (assoc 'name (cdr (assoc 'author comment))))))
+								(insert ": ")
+								(insert (replace-regexp-in-string
+												 "\\(\\|
 \\)"
-											 ""
-											 (cdr (assoc 'note comment))))
-							(newline))
-						(magit-gl-commit-level-comments
-						 (magit-gl-comments sha project-id)))
-			(newline)))))
+												 ""
+												 (cdr (assoc 'note comment))))
+								(newline))
+							comments)
+				(newline))))))
 
 (add-hook 'magit-revision-mode-hook
 					(lambda ()
