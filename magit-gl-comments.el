@@ -28,39 +28,53 @@
 
 ;;; Code:
 
-(defun magit-gl-current-revision ()
-  (cond ((derived-mode-p 'magit-revision-mode)
-         (car magit-refresh-args))
-        ((derived-mode-p 'magit-diff-mode)
-         (--when-let (car magit-refresh-args)
-           (and (string-match "\\.\\.\\([^.].*\\)?[ \t]*\\'" it)
-                (match-string 1 it))))))
+(require 'dash)
 
-(defun magit-gl-current-hunk (section)
-  (pcase (magit-diff-scope)
-    ((or `hunk `region) section)
-    ((or `file `files)  (car (magit-section-children section)))
-    (`list (car (magit-section-children
-                 (car (magit-section-children section)))))))
+(defun magit-gl-commit-level-comments (comments)
+	(--filter
+	 (eq nil (cdr (assoc 'line it)))
+	 (-map 'identity comments)))
 
-(defun magit-gl-diff-position (section)
-  (let* ((parent-section (magit-section-parent section))
-         (cpos (marker-position (magit-section-content parent-section)))
-         (cstart (save-excursion (goto-char cpos) (line-number-at-pos)))
-         (stop (line-number-at-pos)))
-    (- stop cstart)))
+(defun magit-gl-line-level-comments (comments)
+	(--filter
+	 (not (eq nil (cdr (assoc 'line it))))
+	 (-map 'identity comments)))
 
-(defun magit-gl-comments-test ()
-	"Hey ho."
-	(run-with-idle-timer
-	 0.5 nil
-	 (lambda ()
-		 (let*
-				 ((revision (magit-copy-buffer-revision))
-					(project-name (replace-regexp-in-string "*magit-revision: " "" (buffer-name)))
-					(project-id (cdr (assoc project-name projectile-gitlab-project-cache)))
-					(comments (with-local-quit (gitlab-list-commit-comments project-id revision))))
-			 (message "%s" comments)))))
+(defun magit-gl-comments (revision project-id)
+	"Fetch the comments for a given REVISION in PROJECT-ID."
+	(with-local-quit (gitlab-list-commit-comments project-id revision)))
+
+(defun magit-insert-commit-level-comments (rev)
+	(let*
+			((revision (magit-copy-buffer-revision))
+			 (project-name (replace-regexp-in-string "*magit-revision: " "" (buffer-name)))
+			 (project-id (cdr (assoc project-name projectile-gitlab-project-cache)))
+			 (case-fold-search nil))
+		(magit-insert-section (commit-comment)
+			(magit-insert-heading "Commit-level comments:")
+			(mapc (lambda (comment)
+							(let ((date-string (cdr (assoc 'created_at comment))))
+								(string-match "\\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\)" date-string)
+								(insert "(" (match-string 1 date-string) ") "))
+							(insert (replace-regexp-in-string
+											 "[[:lower:] ]" ""
+											 (cdr (assoc 'name (cdr (assoc 'author comment))))))
+							(insert ": ")
+							(insert (replace-regexp-in-string
+											 "\\(\\|
+\\)"
+											 ""
+											 (cdr (assoc 'note comment))))
+							(newline))
+						(magit-gl-commit-level-comments
+						 (magit-gl-comments revision project-id)))
+			(newline))))
+
+(let*
+		((date-string "2017-01-25T18:13:07.000Z"))
+)
+
+
 
 (provide 'magit-gl-comments)
 ;;; magit-gl-comments.el ends here
