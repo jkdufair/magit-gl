@@ -44,12 +44,18 @@
 	"Fetch the comments for a given REVISION in PROJECT-ID."
 	(with-local-quit (gitlab-list-commit-comments project-id revision)))
 
-(defun magit-insert-commit-level-comments (rev)
-	(let*
-			((revision (magit-copy-buffer-revision))
+(defmacro magit-gl-with-project (&rest body)
+	"Evaluate BODY in the context of the project implied by the revision buffer."
+	`(let*
+			((sha (magit-rev-parse (car magit-refresh-args)))
 			 (project-name (replace-regexp-in-string "*magit-revision: " "" (buffer-name)))
-			 (project-id (cdr (assoc project-name projectile-gitlab-project-cache)))
-			 (case-fold-search nil))
+			 (project-id (cdr (assoc project-name projectile-gitlab-project-cache))))
+		 ,@body))
+
+(defun magit-gl-insert-commit-level-comments (rev)
+	(magit-gl-with-project
+	 (let*
+			((case-fold-search nil))
 		(magit-insert-section (commit-comment)
 			(magit-insert-heading "Commit-level comments:")
 			(mapc (lambda (comment)
@@ -67,14 +73,24 @@
 											 (cdr (assoc 'note comment))))
 							(newline))
 						(magit-gl-commit-level-comments
-						 (magit-gl-comments revision project-id)))
-			(newline))))
+						 (magit-gl-comments sha project-id)))
+			(newline)))))
 
-(let*
-		((date-string "2017-01-25T18:13:07.000Z"))
-)
+(add-hook 'magit-revision-mode-hook
+					(lambda ()
+						(local-set-key (kbd "C") 'magit-gl-create-commit-level-comment)))
 
-
+(defun magit-gl-create-commit-level-comment ()
+	"Prompt for a new comment and add to commit in revision buffer."
+	(interactive)
+	(let*
+			((sha (magit-rev-parse (car magit-refresh-args)))
+			 (project-name (replace-regexp-in-string "*magit-revision: " "" (buffer-name)))
+			 (project-id (cdr (assoc project-name projectile-gitlab-project-cache))))
+		(magit-gl-with-project
+		 (gitlab-create-commit-comment project-id sha
+																	(read-string "Your 2¢: "))))
+	(magit-refresh-buffer))
 
 (provide 'magit-gl-comments)
 ;;; magit-gl-comments.el ends here
