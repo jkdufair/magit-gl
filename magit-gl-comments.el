@@ -70,60 +70,80 @@
 		 "\n")))
 
 (defun magit-gl-insert-commit-level-comments (rev)
-	(set-window-margins (get-buffer-window) 2 0)
-	(magit-gl-with-project
-	 (let ((all-comments (magit-gl-comments sha project-id)))
-		 ;; commit-level
-		 (let
-				 ((commit-comments (magit-gl-commit-level-comments all-comments)))
-			 (magit-insert-section (commit-comment)
-				 (magit-insert-heading "Commit-level comments:")
-				 (mapc (lambda (comment) (insert (magit-gl-comment-with-author-initials comment)))
-							 commit-comments))
-			 (newline))
+	;; TODO Come up with a better way to fetch the comments asynchnonously. Too slow.
+	;; (set-window-margins (get-buffer-window) 2 0)
+	;; (magit-gl-with-project
+	;;  (let ((all-comments (magit-gl-comments sha project-id)))
+	;; 	 ;; commit-level
+	;; 	 (let
+	;; 			 ((commit-comments (magit-gl-commit-level-comments all-comments)))
+	;; 		 (magit-insert-section (commit-comment)
+	;; 			 (magit-insert-heading "Commit-level comments:")
+	;; 			 (mapc (lambda (comment) (insert (magit-gl-comment-with-author-initials comment)))
+	;; 						 commit-comments))
+	;; 		 (newline))
 
-		 ;; line level
-		 (remove-overlays)
-		 (let ((line-comments (magit-gl-line-level-comments all-comments)))
-			 (save-excursion
-				 (goto-char (point-min))
-				 ;; Skip down to the file sections
-				 (while (not (magit-section-match 'file))
-					 (magit-section-forward-sibling))
-				 (let ((more-sections t))
-					 (while (and more-sections (magit-section-match 'file))
-						 (while (not (magit-section-match 'hunk))
-							 (magit-section-forward)
-							 (let* ((section (magit-current-section))
-											(section-value (magit-section-value section))
-											(a (cadr section-value))
-											(b (car (cddr section-value)))
-											(_	(string-match "^-\\([0-9]*\\),\\([0-9]*\\)$" a))
-											(abeg (string-to-number (match-string 1 a)))
-											(alen (string-to-number (match-string 2 a)))
-											(aend (+ abeg alen))
-											(_ (string-match "^+\\([0-9]*\\),\\([0-9]*\\)$" b))
-											(bbeg (string-to-number (match-string 1 b)))
-											(blen (string-to-number (match-string 2 b)))
-											(bend (+ bbeg blen))
-											(comments-in-range
-											 (--filter (and (>= (cdr (assoc 'line it)) (min abeg bbeg))
-																		 (<= (cdr (assoc 'line it)) (max aend bend)))
-																line-comments)))
-								 (mapc (lambda (comment)
-												 (save-excursion
-													 ;; TODO figure out the line offsets
-													 (forward-line (+ 1 (- (cdr (assoc 'line comment)) abeg)))
-													 (let ((bullet-ov (make-overlay (point) (point)))
-																 (comments-ov (make-overlay (line-end-position) (line-end-position))))
-														 (overlay-put bullet-ov 'before-string (propertize "nil" 'display '((margin left-margin) "⦿")))
-														 (overlay-put comments-ov 'after-string (concat "\n"
-																																						(magit-gl-comment-with-author-initials comment)))
-														 )))
-											 comments-in-range)))
-						 (if (> (length (magit-section-siblings (magit-current-section) 'next)) 0)
-								 (magit-section-forward-sibling)
-							 (setq more-sections nil)))))))))
+	;; 	 ;; line level
+	;; 	 (remove-overlays)
+	;; 	 (let ((line-comments (magit-gl-line-level-comments all-comments)))
+	;; 		 (save-excursion
+	;; 			 (goto-char (point-min))
+	;; 			 ;; Skip down to the file sections
+	;; 			 (while (not (magit-section-match 'file))
+	;; 				 (magit-section-forward-sibling))
+	;; 			 (let ((more-sections t))
+	;; 				 (while (and more-sections (magit-section-match 'file))
+	;; 					 (while (not (magit-section-match 'hunk))
+	;; 						 (magit-section-forward)
+	;; 						 (let* ((section (magit-current-section))
+	;; 										(section-value (magit-section-value section))
+	;; 										(a (cadr section-value))
+	;; 										(b (car (cddr section-value)))
+	;; 										(_	(string-match "^-\\([0-9]*\\),\\([0-9]*\\)$" a))
+	;; 										(abeg (string-to-number (match-string 1 a)))
+	;; 										(alen (string-to-number (match-string 2 a)))
+	;; 										(aend (+ abeg alen))
+	;; 										(_ (string-match "^+\\([0-9]*\\),\\([0-9]*\\)$" b))
+	;; 										(bbeg (string-to-number (match-string 1 b)))
+	;; 										(blen (string-to-number (match-string 2 b)))
+	;; 										(bend (+ bbeg blen))
+	;; 										(comments-in-range
+	;; 										 (--filter (and (>= (cdr (assoc 'line it)) (min abeg bbeg))
+	;; 																	 (<= (cdr (assoc 'line it)) (max aend bend)))
+	;; 															line-comments)))
+	;; 							 (mapc (lambda (comment)
+	;; 											 (save-excursion
+	;; 												 (let ((comment-line-num (cdr (assoc 'line comment)))
+	;; 															 (comment-line-type (cdr (assoc 'line_type comment)))
+	;; 															 (comment-line-type-count abeg))
+	;; 													 (while (<= comment-line-type-count comment-line-num)
+	;; 														 (forward-line)
+	;; 														 (let* ((first-line-char (char-after (point)))
+	;; 																		(line-type-both (char-equal first-line-char ?\s))
+	;; 																		(line-type-left (char-equal first-line-char ?-))
+	;; 																		(line-type-right (char-equal first-line-char ?+)))
+	;; 															 (cond
+	;; 																((eq comment-line-type nil)
+	;; 																 (if line-type-both
+	;; 																		 (setq comment-line-type-count (+ 1 comment-line-type-count))))
+	;; 																((string-equal comment-line-type "old")
+	;; 																 (if (or line-type-both line-type-left)
+	;; 																		 (setq comment-line-type-count (+ 1 comment-line-type-count))))
+	;; 																((string-equal comment-line-type "new")
+	;; 																 (if (or line-type-both line-type-right)
+	;; 																		 (setq comment-line-type-count (+ 1 comment-line-type-count))))))))
+	;; 												 (let ((bullet-ov (make-overlay (point) (point)))
+	;; 															 (comments-ov (make-overlay (line-end-position) (line-end-position))))
+	;; 													 (overlay-put bullet-ov 'before-string (propertize "nil" 'display '((margin left-margin) "⦿")))
+	;; 													 ;; Well this just looks too messy. Need a better way to show comments
+	;; 													 ;; (overlay-put comments-ov 'after-string (concat "\n"
+	;; 													 ;; 																								(magit-gl-comment-with-author-initials comment)))
+	;; 													 )))
+	;; 										 comments-in-range)))
+	;; 					 (if (> (length (magit-section-siblings (magit-current-section) 'next)) 0)
+	;; 							 (magit-section-forward-sibling)
+	;; 						 (setq more-sections nil))))))))
+	)
 
 (add-hook 'magit-revision-mode-hook
 					(lambda ()
